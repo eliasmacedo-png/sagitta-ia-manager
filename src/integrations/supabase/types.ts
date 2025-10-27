@@ -16,32 +16,56 @@ export type Database = {
     Tables: {
       agents: {
         Row: {
+          agent_api_key: string | null
+          api_key: string | null
+          avatar_url: string | null
           config: Json | null
           created_at: string
           description: string | null
           id: string
+          instructions: string | null
+          knowledge_base: Json | null
+          model_name: string | null
+          model_provider: string | null
           name: string
           status: string
+          tags: string[] | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          agent_api_key?: string | null
+          api_key?: string | null
+          avatar_url?: string | null
           config?: Json | null
           created_at?: string
           description?: string | null
           id?: string
+          instructions?: string | null
+          knowledge_base?: Json | null
+          model_name?: string | null
+          model_provider?: string | null
           name: string
           status?: string
+          tags?: string[] | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          agent_api_key?: string | null
+          api_key?: string | null
+          avatar_url?: string | null
           config?: Json | null
           created_at?: string
           description?: string | null
           id?: string
+          instructions?: string | null
+          knowledge_base?: Json | null
+          model_name?: string | null
+          model_provider?: string | null
           name?: string
           status?: string
+          tags?: string[] | null
           updated_at?: string
           user_id?: string
         }
