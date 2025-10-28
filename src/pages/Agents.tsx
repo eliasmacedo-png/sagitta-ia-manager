@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { toast } from "sonner";
-import { Bot, Plus, Trash2, Upload, X, Eye, EyeOff, Check, AlertCircle, Loader2, Copy, RefreshCw } from "lucide-react";
+import { Bot, Plus, Trash2, Upload, X, Eye, EyeOff, Check, AlertCircle, Loader2, Copy, RefreshCw, Smartphone, QrCode } from "lucide-react";
 
 interface AgentFormData {
   name: string;
@@ -63,6 +63,9 @@ const Agents = () => {
   const [showApiKey, setShowApiKey] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [tagInput, setTagInput] = useState("");
+  const [qrCodeDialog, setQrCodeDialog] = useState(false);
+  const [selectedAgent, setSelectedAgent] = useState<any>(null);
+  const [connectingWhatsApp, setConnectingWhatsApp] = useState(false);
   const navigate = useNavigate();
   
   const [formData, setFormData] = useState<AgentFormData>({
@@ -250,6 +253,72 @@ const Agents = () => {
       toast.success("Agente deletado");
       loadAgents(user.id);
     }
+  };
+
+  const connectWhatsApp = async (agent: any) => {
+    setSelectedAgent(agent);
+    setConnectingWhatsApp(true);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('evolution-create-instance', {
+        body: { agentId: agent.id }
+      });
+
+      if (error) throw error;
+
+      if (data?.qrcode) {
+        setQrCodeDialog(true);
+        pollWhatsAppStatus(agent.id);
+      } else {
+        toast.error("Erro ao gerar QR code");
+      }
+    } catch (error: any) {
+      console.error("Error connecting WhatsApp:", error);
+      toast.error(error.message || "Erro ao conectar WhatsApp");
+    } finally {
+      setConnectingWhatsApp(false);
+    }
+  };
+
+  const pollWhatsAppStatus = async (agentId: string) => {
+    const interval = setInterval(async () => {
+      const { data: agent } = await supabase
+        .from("agents")
+        .select("*")
+        .eq("id", agentId)
+        .single();
+
+      if (agent?.whatsapp_status === "connected") {
+        clearInterval(interval);
+        setQrCodeDialog(false);
+        toast.success("WhatsApp conectado com sucesso!");
+        loadAgents(user.id);
+      } else if (agent?.whatsapp_qr_code) {
+        setSelectedAgent(agent);
+      }
+    }, 3000);
+
+    setTimeout(() => {
+      clearInterval(interval);
+    }, 120000);
+  };
+
+  const disconnectWhatsApp = async (agent: any) => {
+    if (!confirm("Tem certeza que deseja desconectar este WhatsApp?")) return;
+    
+    await supabase
+      .from("agents")
+      .update({
+        whatsapp_status: "disconnected",
+        whatsapp_qr_code: null,
+        whatsapp_instance_name: null,
+        whatsapp_phone_number: null,
+        whatsapp_connected_at: null
+      })
+      .eq("id", agent.id);
+
+    toast.success("WhatsApp desconectado!");
+    loadAgents(user.id);
   };
 
   if (!user) return null;
@@ -626,8 +695,56 @@ const Agents = () => {
                     <strong>Modelo:</strong> {AI_PROVIDERS[agent.model_provider as keyof typeof AI_PROVIDERS]?.name} - {agent.model_name}
                   </p>
                 )}
+                
+                {/* WhatsApp Status */}
+                <div className="border-t pt-3 mt-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Smartphone className="h-4 w-4" />
+                      <span className="text-sm font-medium">WhatsApp</span>
+                    </div>
+                    {agent.whatsapp_status === "connected" && (
+                      <Badge className="bg-green-600 text-xs">Conectado</Badge>
+                    )}
+                    {agent.whatsapp_status === "connecting" && (
+                      <Badge variant="secondary" className="text-xs">Conectando...</Badge>
+                    )}
+                    {(!agent.whatsapp_status || agent.whatsapp_status === "disconnected") && (
+                      <Badge variant="outline" className="text-xs">Desconectado</Badge>
+                    )}
+                  </div>
+                  
+                  {agent.whatsapp_phone_number && (
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Número: {agent.whatsapp_phone_number}
+                    </p>
+                  )}
+                  
+                  {agent.whatsapp_status === "connected" ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => disconnectWhatsApp(agent)}
+                      className="w-full"
+                    >
+                      Desconectar WhatsApp
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => connectWhatsApp(agent)}
+                      disabled={connectingWhatsApp}
+                      className="w-full"
+                    >
+                      <QrCode className="h-4 w-4 mr-2" />
+                      {agent.whatsapp_status === "connecting" ? "Conectando..." : "Conectar WhatsApp"}
+                    </Button>
+                  )}
+                </div>
+
                 {agent.agent_api_key && (
-                  <div className="flex items-center gap-2 text-sm">
+                  <div className="flex items-center gap-2 text-sm border-t pt-3">
                     <code className="bg-muted px-2 py-1 rounded text-xs flex-1 truncate">{agent.agent_api_key}</code>
                     <Button
                       size="sm"
@@ -649,6 +766,47 @@ const Agents = () => {
             </Card>
           ))}
         </div>
+
+        {/* QR Code Dialog */}
+        <Dialog open={qrCodeDialog} onOpenChange={setQrCodeDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Conectar WhatsApp</DialogTitle>
+            </DialogHeader>
+            <div className="flex flex-col items-center gap-4 py-6">
+              {selectedAgent?.whatsapp_qr_code ? (
+                <>
+                  <div className="p-4 bg-white rounded-lg">
+                    <img
+                      src={selectedAgent.whatsapp_qr_code}
+                      alt="QR Code"
+                      className="w-64 h-64"
+                    />
+                  </div>
+                  <div className="text-center space-y-2">
+                    <p className="text-sm font-medium">Escaneie este QR code com o WhatsApp</p>
+                    <ol className="text-xs text-muted-foreground text-left space-y-1">
+                      <li>1. Abra o WhatsApp no seu celular</li>
+                      <li>2. Toque em Menu ou Configurações</li>
+                      <li>3. Toque em Aparelhos conectados</li>
+                      <li>4. Toque em Conectar um aparelho</li>
+                      <li>5. Aponte seu celular para esta tela para escanear</li>
+                    </ol>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Aguardando conexão...
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span>Gerando QR code...</span>
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

@@ -1,8 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-import { LogOut, User, Bot } from "lucide-react";
+import { LogOut, User, Bot, Shield } from "lucide-react";
 import { toast } from "sonner";
+import { useEffect, useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +19,25 @@ interface NavbarProps {
 
 const Navbar = ({ userEmail }: NavbarProps) => {
   const navigate = useNavigate();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    checkAdminStatus();
+  }, []);
+
+  const checkAdminStatus = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data } = await supabase
+      .from("user_roles")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("role", "admin")
+      .single();
+
+    setIsAdmin(!!data);
+  };
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
@@ -56,6 +76,16 @@ const Navbar = ({ userEmail }: NavbarProps) => {
             >
               Agentes
             </Button>
+            {isAdmin && (
+              <Button
+                variant="ghost"
+                onClick={() => navigate("/admin")}
+                className="gap-2"
+              >
+                <Shield className="h-4 w-4" />
+                Admin
+              </Button>
+            )}
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

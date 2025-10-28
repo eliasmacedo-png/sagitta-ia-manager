@@ -1,1 +1,10 @@
 project_id = "lmjkafhapnuiuqislypd"
+
+[functions.evolution-create-instance]
+verify_jwt = true
+
+[functions.evolution-webhook]
+verify_jwt = false
+
+[functions.evolution-check-status]
+verify_jwt = true
