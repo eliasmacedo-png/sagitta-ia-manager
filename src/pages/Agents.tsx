@@ -66,6 +66,7 @@ const Agents = () => {
   const [qrCodeDialog, setQrCodeDialog] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<any>(null);
   const [connectingWhatsApp, setConnectingWhatsApp] = useState(false);
+  const [editingAgent, setEditingAgent] = useState<any>(null);
   const navigate = useNavigate();
   
   const [formData, setFormData] = useState<AgentFormData>({
@@ -246,6 +247,75 @@ const Agents = () => {
     setShowApiKey(false);
   };
 
+  const editAgent = (agent: any) => {
+    setEditingAgent(agent);
+    setFormData({
+      name: agent.name,
+      description: agent.description,
+      avatar: null,
+      tags: agent.tags || [],
+      instructions: agent.instructions || "",
+      knowledgeBase: agent.knowledge_base || { text: "", urls: [] },
+      modelProvider: agent.model_provider || "",
+      modelName: agent.model_name || "",
+      apiKey: agent.api_key || "",
+      status: agent.status
+    });
+    setAvatarPreview(agent.avatar_url);
+    setOpen(true);
+  };
+
+  const updateAgent = async () => {
+    if (!validateForm()) return;
+    
+    setLoading(true);
+    try {
+      let avatarUrl = editingAgent.avatar_url;
+      
+      if (formData.avatar) {
+        const fileName = `${Date.now()}_${formData.avatar.name}`;
+        const { error: uploadError } = await supabase.storage
+          .from("agent-avatars")
+          .upload(fileName, formData.avatar);
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from("agent-avatars")
+          .getPublicUrl(fileName);
+        avatarUrl = publicUrl;
+      }
+
+      const { error } = await supabase
+        .from("agents")
+        .update({
+          name: formData.name,
+          description: formData.description,
+          avatar_url: avatarUrl,
+          tags: formData.tags,
+          instructions: formData.instructions,
+          knowledge_base: formData.knowledgeBase,
+          model_provider: formData.modelProvider,
+          model_name: formData.modelName,
+          api_key: formData.apiKey,
+          status: formData.status
+        })
+        .eq("id", editingAgent.id);
+
+      if (error) throw error;
+
+      toast.success("Agente atualizado com sucesso!");
+      setOpen(false);
+      setEditingAgent(null);
+      resetForm();
+      loadAgents(user.id);
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao atualizar agente");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const deleteAgent = async (id: string) => {
     const { error } = await supabase.from("agents").delete().eq("id", id);
     if (error) toast.error("Erro ao deletar");
@@ -335,7 +405,7 @@ const Agents = () => {
             </DialogTrigger>
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Criar Novo Agente</DialogTitle>
+                <DialogTitle>{editingAgent ? "Editar Agente" : "Criar Novo Agente"}</DialogTitle>
               </DialogHeader>
               
               <div className="space-y-6 py-4">
@@ -642,14 +712,14 @@ const Agents = () => {
 
                 {/* Botões de Ação */}
                 <div className="flex gap-3 pt-4">
-                  <Button variant="outline" onClick={() => setOpen(false)} className="flex-1">
+                  <Button variant="outline" onClick={() => { setOpen(false); setEditingAgent(null); }} className="flex-1">
                     Cancelar
                   </Button>
-                  <Button onClick={createAgent} disabled={loading} className="flex-1">
+                  <Button onClick={editingAgent ? updateAgent : createAgent} disabled={loading} className="flex-1">
                     {loading ? (
-                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Criando...</>
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{editingAgent ? "Atualizando..." : "Criando..."}</>
                     ) : (
-                      <>Salvar e {formData.status === "active" ? "Ativar" : "Criar"}</>
+                      <>{editingAgent ? "Atualizar" : `Salvar e ${formData.status === "active" ? "Ativar" : "Criar"}`}</>
                     )}
                   </Button>
                 </div>
@@ -759,9 +829,14 @@ const Agents = () => {
                     </Button>
                   </div>
                 )}
-                <Button variant="destructive" size="sm" onClick={() => deleteAgent(agent.id)} className="w-full mt-3">
-                  <Trash2 className="h-4 w-4 mr-2" />Deletar
-                </Button>
+                <div className="flex gap-2 mt-3">
+                  <Button variant="outline" size="sm" onClick={() => editAgent(agent)} className="flex-1">
+                    Editar
+                  </Button>
+                  <Button variant="destructive" size="sm" onClick={() => deleteAgent(agent.id)} className="flex-1">
+                    <Trash2 className="h-4 w-4 mr-2" />Deletar
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}

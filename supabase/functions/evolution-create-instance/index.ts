@@ -63,8 +63,9 @@ serve(async (req) => {
       );
     }
 
-    // Generate unique instance name
+    // Generate unique instance name and API key
     const instanceName = `agent_${agentId.substring(0, 8)}_${Date.now()}`;
+    const instanceApiKey = `inst_${crypto.randomUUID().replace(/-/g, '')}`;
 
     // Create instance in Evolution API
     const createResponse = await fetch(`${config.base_url}/instance/create`, {
@@ -75,6 +76,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         instanceName: instanceName,
+        token: instanceApiKey,
         qrcode: true,
         integration: 'WHATSAPP-BAILEYS',
       }),
@@ -118,13 +120,14 @@ serve(async (req) => {
       console.error('Webhook configuration failed, but continuing...');
     }
 
-    // Update agent with instance name and set status to connecting
+    // Update agent with instance name, API key, and set status to connecting
     const { error: updateError } = await supabaseClient
       .from('agents')
       .update({
         whatsapp_instance_name: instanceName,
         whatsapp_status: 'connecting',
         whatsapp_qr_code: instanceData.qrcode?.base64 || null,
+        api_key: instanceApiKey,
       })
       .eq('id', agentId);
 

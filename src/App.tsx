@@ -9,6 +9,7 @@ import Dashboard from "./pages/Dashboard";
 import Agents from "./pages/Agents";
 import Profile from "./pages/Profile";
 import Admin from "./pages/Admin";
+import InitialSetup from "./pages/InitialSetup";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -25,7 +26,8 @@ const App = () => (
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/agents" element={<Agents />} />
           <Route path="/profile" element={<Profile />} />
-          <Route path="/admin" element={<Admin />} />
+        <Route path="/admin" element={<Admin />} />
+        <Route path="/setup" element={<InitialSetup />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
