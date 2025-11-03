@@ -17,6 +17,9 @@ export type Database = {
       agents: {
         Row: {
           agent_api_key: string | null
+          ai_api_key: string | null
+          ai_model: string | null
+          ai_provider: string | null
           api_key: string | null
           avatar_url: string | null
           config: Json | null
@@ -40,6 +43,9 @@ export type Database = {
         }
         Insert: {
           agent_api_key?: string | null
+          ai_api_key?: string | null
+          ai_model?: string | null
+          ai_provider?: string | null
           api_key?: string | null
           avatar_url?: string | null
           config?: Json | null
@@ -63,6 +69,9 @@ export type Database = {
         }
         Update: {
           agent_api_key?: string | null
+          ai_api_key?: string | null
+          ai_model?: string | null
+          ai_provider?: string | null
           api_key?: string | null
           avatar_url?: string | null
           config?: Json | null
@@ -93,6 +102,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      ai_config: {
+        Row: {
+          available_providers: Json | null
+          created_at: string | null
+          id: string
+          mode: string
+          provider_configs: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          available_providers?: Json | null
+          created_at?: string | null
+          id?: string
+          mode?: string
+          provider_configs?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          available_providers?: Json | null
+          created_at?: string | null
+          id?: string
+          mode?: string
+          provider_configs?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       evolution_config: {
         Row: {
