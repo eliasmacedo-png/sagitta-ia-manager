@@ -18,19 +18,8 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Get agent ID from URL params
-    const url = new URL(req.url);
-    const agentId = url.searchParams.get('agentId');
-
-    if (!agentId) {
-      return new Response(
-        JSON.stringify({ error: 'Agent ID is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Get agent data with Evolution API details
-    const { data: agent, error: agentError } = await supabase
+    // Get all agents with Evolution API details
+    const { data: agents, error: agentsError } = await supabase
       .from('agents')
       .select(`
         *,
@@ -39,15 +28,13 @@ serve(async (req) => {
           full_name,
           avatar_url
         )
-      `)
-      .eq('id', agentId)
-      .single();
+      `);
 
-    if (agentError || !agent) {
-      console.error('Error fetching agent:', agentError);
+    if (agentsError) {
+      console.error('Error fetching agents:', agentsError);
       return new Response(
-        JSON.stringify({ error: 'Agent not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Failed to fetch agents' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -65,9 +52,15 @@ serve(async (req) => {
       );
     }
 
-    // Prepare webhook data
+    // Get AI config
+    const { data: aiConfig } = await supabase
+      .from('ai_config')
+      .select('*')
+      .single();
+
+    // Prepare webhook data for all agents
     const webhookData = {
-      agent: {
+      agents: agents.map(agent => ({
         id: agent.id,
         name: agent.name,
         description: agent.description,
@@ -75,27 +68,34 @@ serve(async (req) => {
         status: agent.status,
         tags: agent.tags,
         avatar_url: agent.avatar_url,
-      },
-      user: {
-        id: agent.profiles?.id,
-        full_name: agent.profiles?.full_name,
-        avatar_url: agent.profiles?.avatar_url,
-      },
-      whatsapp: {
-        instance_name: agent.whatsapp_instance_name,
-        status: agent.whatsapp_status,
-        phone_number: agent.whatsapp_phone_number,
-        connected_at: agent.whatsapp_connected_at,
-      },
+        user: {
+          id: agent.profiles?.id,
+          full_name: agent.profiles?.full_name,
+          avatar_url: agent.profiles?.avatar_url,
+        },
+        whatsapp: {
+          instance_name: agent.whatsapp_instance_name,
+          status: agent.whatsapp_status,
+          phone_number: agent.whatsapp_phone_number,
+          connected_at: agent.whatsapp_connected_at,
+          instance_api_key: agent.api_key,
+        },
+        ai: {
+          provider: agent.ai_provider || agent.model_provider,
+          model: agent.ai_model || agent.model_name,
+          api_key: agent.ai_api_key,
+        },
+        knowledge_base: agent.knowledge_base,
+      })),
       evolution_api: {
         base_url: evolutionConfig.base_url,
-        instance_api_key: agent.api_key,
+        webhook_url: evolutionConfig.webhook_url,
       },
-      ai_model: {
-        provider: agent.model_provider,
-        model_name: agent.model_name,
-      },
-      knowledge_base: agent.knowledge_base,
+      ai_config: aiConfig ? {
+        mode: aiConfig.mode,
+        available_providers: aiConfig.available_providers,
+        centralized_configs: aiConfig.mode === 'centralized' ? aiConfig.provider_configs : null,
+      } : null,
       timestamp: new Date().toISOString(),
     };
 

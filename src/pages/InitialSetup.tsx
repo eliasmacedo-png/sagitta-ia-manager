@@ -20,43 +20,55 @@ const InitialSetup = () => {
   const createAdminAccount = async () => {
     setLoading(true);
     try {
-      // Sign up the admin user
-      const { data: authData, error: signUpError } = await supabase.auth.signUp({
+      // Try to sign in first (user might already exist)
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email: formData.email,
         password: formData.password,
-        options: {
-          data: {
-            full_name: formData.fullName,
-          },
-        },
       });
 
-      if (signUpError) throw signUpError;
+      let userId = signInData?.user?.id;
 
-      if (!authData.user) {
-        throw new Error("Failed to create user");
-      }
-
-      // Add admin role
-      const { error: roleError } = await supabase
-        .from('user_roles')
-        .insert({
-          user_id: authData.user.id,
-          role: 'admin',
+      // If sign in failed, try to create account
+      if (signInError) {
+        const { data: authData, error: signUpError } = await supabase.auth.signUp({
+          email: formData.email,
+          password: formData.password,
+          options: {
+            data: {
+              full_name: formData.fullName,
+            },
+          },
         });
 
-      if (roleError) throw roleError;
+        if (signUpError) throw signUpError;
+        if (!authData.user) throw new Error("Failed to create user");
+        
+        userId = authData.user.id;
+      }
 
-      toast.success("Conta de administrador criada com sucesso!");
-      
-      // Sign in the user
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: formData.email,
-        password: formData.password,
-      });
+      if (!userId) throw new Error("No user ID available");
 
-      if (signInError) throw signInError;
+      // Check if admin role already exists
+      const { data: existingRole } = await supabase
+        .from('user_roles')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('role', 'admin')
+        .single();
 
+      // Add admin role if it doesn't exist
+      if (!existingRole) {
+        const { error: roleError } = await supabase
+          .from('user_roles')
+          .insert({
+            user_id: userId,
+            role: 'admin',
+          });
+
+        if (roleError) throw roleError;
+      }
+
+      toast.success("Conta de administrador configurada com sucesso!");
       navigate("/admin");
     } catch (error) {
       console.error("Error creating admin account:", error);
